@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 
 source "${JBOSS_HOME}/bin/launch/launch-common.sh"
 source $JBOSS_HOME/bin/launch/logging.sh 
