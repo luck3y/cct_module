@@ -12,7 +12,7 @@ cp -r ${ADDED_DIR}/launch/* ${JBOSS_HOME}/bin/launch
 chmod ug+x ${JBOSS_HOME}/bin/openshift-launch.sh ${JBOSS_HOME}/bin/openshift-migrate.sh
 
 # remove the min metaspace
-sed -i "s|-XX:MetaspaceSize=96M||" $JBOSS_HOME/bin/standalone.conf
+#sed -i "s|-XX:MetaspaceSize=96M||" $JBOSS_HOME/bin/standalone.conf
 
 chown -R jboss:root ${JBOSS_HOME}/bin/
 chmod -R g+rwX ${JBOSS_HOME}/bin/
