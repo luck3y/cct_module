@@ -66,6 +66,7 @@ Feature: Openshift OpenJDK GC tests
       And container log should match regex ^ *JAVA_OPTS: *.* -XX:AdaptiveSizePolicyWeight=90\s
       And container log should match regex ^ *JAVA_OPTS: *.* -XX:MaxMetaspaceSize=120m\s
 
+  @wip
   Scenario: Check for adjusted heap sizes
     When container is started with args
       | arg       | value                                                    |
@@ -74,6 +75,7 @@ Feature: Openshift OpenJDK GC tests
     Then container log should match regex ^ *JAVA_OPTS: *.* -Xms128m\s
       And container log should match regex ^ *JAVA_OPTS: *.* -Xmx256m\s
 
+  @wip
   # CLOUD-193 (mem-limit); CLOUD-459 (default heap size == max)
   Scenario: CLOUD-193 Check for dynamic resource allocation
     When container is started with args
@@ -82,6 +84,7 @@ Feature: Openshift OpenJDK GC tests
     Then container log should match regex ^ *JAVA_OPTS: *.* -Xms128m\s
       And container log should match regex ^ *JAVA_OPTS: *.* -Xmx512m\s
 
+  @wip
   # CLOUD-459 (override default heap size)
   Scenario: CLOUD-459 Check for adjusted default heap size
     When container is started with args
