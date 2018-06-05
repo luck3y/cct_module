@@ -7,6 +7,7 @@
         <http-connector name="http-connector-throughput" socket-binding="http-messaging" endpoint="http-acceptor-throughput">
             <param name="batch-delay" value="50"/>
         </http-connector>
+        <!-- ##MESSAGING_REMOTE_CONNECTOR## -->
         <in-vm-connector name="in-vm" server-id="0">
             <param name="buffer-pooling" value="false"/>
         </in-vm-connector>
@@ -24,4 +25,6 @@
         <connection-factory name="InVmConnectionFactory" connectors="in-vm" entries="java:/ConnectionFactory"/>
         <connection-factory name="RemoteConnectionFactory" connectors="http-connector" entries="java:jboss/exported/jms/RemoteConnectionFactory" reconnect-attempts="-1" />
         <pooled-connection-factory name="activemq-ra" transaction="xa" connectors="in-vm" entries="java:/JmsXA java:jboss/DefaultJMSConnectionFactory"/>
+        <!-- ##MESSAGING_ACTIVEMQ_RA_REMOTE## -->
+        <!-- <pooled-connection-factory name="activemq-ra-remote" entries="java:/RemoteJmsXA java:jboss/RemoteJmsXA" connectors="netty-remote-throughput" transaction="xa"/> -->
     </server>

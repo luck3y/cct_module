@@ -100,7 +100,7 @@ function configure_mq_cluster_password() {
 }
 
 function configure_mq() {
-  if [ true != "$AMQ" ] ; then
+  if [ "${AMQ_TYPE}" = "embedded" ] ; then
     configure_mq_cluster_password
 
     destinations=$(configure_mq_destinations)
@@ -108,6 +108,8 @@ function configure_mq() {
 
     sed -i "s|<!-- ##MESSAGING_SUBSYSTEM_CONFIG## -->|${activemq_subsystem%$'\n'}|" "${CONFIG_FILE}"
     sed -i 's|<!-- ##MESSAGING_PORTS## -->|<socket-binding name="messaging" port="5445"/><socket-binding name="messaging-throughput" port="5455"/>|' "${CONFIG_FILE}"
+  elif [ "${AMQ_TYPE}" = "remote-amq7" ] ; then
+    echo "REMOTE AMQ7"
   fi
 }
 
@@ -157,15 +159,30 @@ function generate_object_config() {
 # $11 - queue names
 # $12 - topic names
 # $13 - ra tracking
+# $14 - resource counter, incremented for each broker, starting at 0
 function generate_resource_adapter() {
   log_info "Generating resource adapter configuration for service: $1 (${10})" >&2
   IFS=',' read -a queues <<< ${11}
   IFS=',' read -a topics <<< ${12}
+
+  local ra_id=""
+  # this preserves the expected behavior of the first RA, and doesn't append a number. Any additional RAs will have -count appended.
+  if [ "${14}" -eq "0" ]; then
+    ra_id="${9}"
+  else
+    ra_id="${9}-${14}"
+  fi
+
+  # if we don't declare a EJB_RESOURCE_ADAPTER_NAME, then just use the first one
+  if [ -z "${EJB_RESOURCE_ADAPTER_NAME}" ]; then
+    export EJB_RESOURCE_ADAPTER_NAME="${ra_id}"
+  fi
+
   case "${10}" in
     "amq")
       prefix=$8
       ra="
-                <resource-adapter id=\"$9\">
+                <resource-adapter id=\"${ra_id}\">
                     <archive>$9</archive>
                     <transaction-support>XATransaction</transaction-support>
                     <config-property name=\"UserName\">$3</config-property>
@@ -240,6 +257,78 @@ function generate_resource_adapter() {
   echo $ra | sed ':a;N;$!ba;s|\n|\\n|g'
 }
 
+# Arguments:
+# $1 - service name
+# $2 - connection factory jndi name
+# $3 - broker username
+# $4 - broker password
+# $5 - protocol
+# $6 - broker host
+# $7 - broker port
+# $8 - prefix
+# $9 - queue names
+# $10 - topic names
+# $11 - ra tracking
+# $12 - counter
+
+function generate_remote_mq_connection() {
+  log_info "Generating remote MQ configuration for service: $1 " >&2
+  IFS=',' read -a queues <<< ${9}
+  IFS=',' read -a topics <<< ${10}
+
+  # if we don't declare a EJB_RESOURCE_ADAPTER_NAME, then just use the first one
+  if [ -z "${EJB_RESOURCE_ADAPTER_NAME}" ]; then
+    export EJB_RESOURCE_ADAPTER_NAME="${ra_id}"
+  fi
+
+  ra="
+             <external-context name=\"java:global/remoteContext\" module=\"org.apache.activemq.artemis\" class=\"javax.naming.InitialContext\">
+                 <environment>
+                    <property name=\"UserName\" value=\"${3}\"/>
+                    <property name=\"Password\" value=\"${4}\"/>
+                    <property name=\"java.naming.factory.initial\" value=\"org.apache.activemq.artemis.jndi.ActiveMQInitialContextFactory\"/>
+                    <property name=\"java.naming.provider.url\" value=\"tcp://${6}:${7}\"/>
+                    "
+
+  # backwards-compatability flag per CLOUD-329
+  simple_def_phys_dest=$(echo "${MQ_SIMPLE_DEFAULT_PHYSICAL_DESTINATION}" | tr [:upper:] [:lower:])
+
+  objects=""
+  if [ "${#queues[@]}" -ne "0" ]; then
+    for queue in ${queues[@]}; do
+      queue_env=${prefix}_QUEUE_${queue^^}
+      queue_env=${queue_env//[-\.]/_}
+      if [ "${simple_def_phys_dest}" = "true" ]; then
+        physical=$(find_env "${queue_env}_PHYSICAL" "$queue")
+      else
+        physical=$(find_env "${queue_env}_PHYSICAL" "queue/$queue")
+      fi
+       $object="<property name=\"queue.${physical}\" value=\"${physical}\"/>"
+       ra="$ra${object}"
+      done
+    fi
+
+    if [ "${#topics[@]}" -ne "0" ]; then
+      for topic in ${topics[@]}; do
+        topic_env=${prefix}_TOPIC_${topic^^}
+        topic_env=${topic_env//[-\.]/_}
+
+        if [ "${simple_def_phys_dest}" = "true" ]; then
+          physical=$(find_env "${topic_env}_PHYSICAL" "$topic")
+        else
+          physical=$(find_env "${topic_env}_PHYSICAL" "topic/$topic")
+        fi
+        object="<property name=\"queue.${physical}\" value=\"${physical}\"/>"
+        ra="$ra${object}"
+      done
+    fi
+
+    ra="$ra
+                 </environment>
+             </external-context>"
+  echo $ra | sed ':a;N;$!ba;s|\n|\\n|g'
+}
+
 # Finds the name of the broker services and generates resource adapters
 # based on this info
 function inject_brokers() {
@@ -247,18 +336,17 @@ function inject_brokers() {
   IFS=',' read -a brokers <<< $MQ_SERVICE_PREFIX_MAPPING
 
   defaultJmsConnectionFactoryJndi="$DEFAULT_JMS_CONNECTION_FACTORY"
-
-  AMQ=false
+  local has_remote_broker=false
+  AMQ_TYPE="embedded"
   if [ "${#brokers[@]}" -eq "0" ]; then
-    ras=""
     if [ -z "$defaultJmsConnectionFactoryJndi" ]; then
         defaultJmsConnectionFactoryJndi="java:jboss/DefaultJMSConnectionFactory"
     fi
   else
+    has_remote_broker=true
+    local counter=0
     for broker in ${brokers[@]}; do
-
-      log_info "Processing broker: $broker"
-
+      log_info "Processing broker($counter): $broker"
       service_name=${broker%=*}
       service=${service_name^^}
       service=${service//-/_}
@@ -325,20 +413,37 @@ function inject_brokers() {
           driver="amq"
           archive="activemq-rar.rar"
           ;;
+        "AMQ7")
+          driver="amq7"
+          archive=""
       esac
 
-      ra=$(generate_resource_adapter $service_name $jndi $username $password $protocol $host $port $prefix $archive $driver "$queues" "$topics" $ra_tracking)
-      ras="$ras$ra\n"
+      if [ "${driver}" = "amq7" ] ; then
+        log_info "XXX: inject brokers: AMQ7"
+        remote_mq=$(generate_remote_mq_connection ${service_name} ${jndi} ${username} ${password} ${protocol} ${host} ${port} ${prefix} "${queues}" "${topics}" "${ra_tracking}" ${counter})
+        sed -i "s|<!-- ##MESSAGING_SUBSYSTEM_CONFIG## -->|${activemq_subsystem%$'\n'}<!-- ##MESSAGING_SUBSYSTEM_CONFIG## -->|" "${CONFIG_FILE}"
+        sed -i "s|<!-- ##MESSAGING_REMOTE_BINDINGS## -->|<bindings>${remote_mq%$'\n'}</bindings><!-- ##MESSAGING_REMOTE_BINDINGS## -->|" $CONFIG_FILE
+        sed -i "s|<!-- ##MESSAGING_REMOTE_CONNECTOR## -->|<remote-connector name=\"netty-remote-throughput\" socket-binding=\"messaging-remote-throughput\"/><!-- ##MESSAGING_REMOTE_CONNECTOR## -->|" $CONFIG_FILE
+        sed -i "s|<!-- ##MESSAGING_ACTIVEMQ_RA_REMOTE## -->|<pooled-connection-factory name=\"activemq-ra-remote\" entries=\"java:/RemoteJmsXA java:jboss/RemoteJmsXA\" connectors=\"netty-remote-throughput\" transaction=\"xa\"/><!-- ##MESSAGING_ACTIVEMQ_RA_REMOTE## -->|" $CONFIG_FILE
+      else
+        log_info "XXX: inject brokers: AMQ6"
+        ra=$(generate_resource_adapter ${service_name} ${jndi} ${username} ${password} ${protocol} ${host} ${port} ${prefix} ${archive} ${driver} "${queues}" "${topics}" "${ra_tracking}" ${counter})
+        sed -i "s|<!-- ##RESOURCE_ADAPTERS## -->|${ra%$'\n'}<!-- ##RESOURCE_ADAPTERS## -->|" $CONFIG_FILE
 
-      if [ -z "$defaultJmsConnectionFactoryJndi" ]; then
-        defaultJmsConnectionFactoryJndi="$jndi"
-      fi
-
+        # default JMS to the first entry
+        if [ -z "$defaultJmsConnectionFactoryJndi" ]; then
+            defaultJmsConnectionFactoryJndi="$jndi"
+        fi
+        # increment RA counter
+        counter=$((counter+1))
+     fi
     done
-    if [ -n "$ras" ] ; then
-      AMQ=true
-      JBOSS_MESSAGING_ARGS="${JBOSS_MESSAGING_ARGS} -Dejb.resource-adapter-name=activemq-rar.rar"
+
+    # only for AMQ6
+    if [ "$has_remote_broker" = true ] ; then
+      JBOSS_MESSAGING_ARGS="${JBOSS_MESSAGING_ARGS} -Dejb.resource-adapter-name=${EJB_RESOURCE_ADAPTER_NAME:-activemq-rar.rar}"
     fi
+
   fi
 
   defaultJms=""
@@ -346,10 +451,10 @@ function inject_brokers() {
     defaultJms="jms-connection-factory=\"$defaultJmsConnectionFactoryJndi\""
   fi
 
-  sed -i "s|<!-- ##RESOURCE_ADAPTERS## -->|${ras%$'\n'}<!-- ##RESOURCE_ADAPTERS## -->|" $CONFIG_FILE
   # new format
   sed -i "s|jms-connection-factory=\"##DEFAULT_JMS##\"|${defaultJms}|" $CONFIG_FILE
   # legacy format, bare ##DEFAULT_JMS##
   sed -i "s|##DEFAULT_JMS##|${defaultJms}|" $CONFIG_FILE
+
 }
 
