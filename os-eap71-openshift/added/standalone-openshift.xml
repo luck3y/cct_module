@@ -484,6 +484,7 @@
                     </properties>
                 </configurable-sasl-server-factory>
             </sasl>
+            <!-- ##ELYTRON_TLS## -->
             <!-- ##TLS## -->
         </subsystem>
         <subsystem xmlns="urn:jboss:domain:security:2.0">
