@@ -32,7 +32,7 @@ Feature: Check logging configuration
     Then container log should contain WFLYSRV0025: JBoss EAP CD 7.2.0.CD12
     And XML file /opt/eap/standalone/configuration/standalone-openshift.xml should contain value COLOR-PATTERN on XPath //*[local-name()='console-handler']/*[local-name()='formatter']/*[local-name()='named-formatter']/@name
 
-  @jboss-eap-6
+  
   Scenario: Check that EAP6 logs are json formatted
     When container is started with env
        | variable                    | value             |
@@ -40,7 +40,7 @@ Feature: Check logging configuration
     Then container log should contain "message":"JBAS015874: JBoss EAP 6.4
     And XML file /opt/eap/standalone/configuration/standalone-openshift.xml should contain value OPENSHIFT on XPath //*[local-name()='console-handler']/*[local-name()='formatter']/*[local-name()='named-formatter']/@name
 
-  @jboss-eap-6
+  
   Scenario: Check that EAP6 logs are normally formatted
     When container is started with env
        | variable                    | value              |

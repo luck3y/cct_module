@@ -1,4 +1,4 @@
-@jboss-eap-6/eap64-openshift
+
 Feature: Openshift EAP jgroups secure
   Scenario: jgroups-encrypt
     Given XML namespaces

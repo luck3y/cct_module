@@ -1,4 +1,4 @@
-@jboss-eap-6/eap64-openshift
+
 Feature: EAP 6.4 Openshift datasources
 
   Scenario: Test no warning for MongoDB
@@ -10,7 +10,7 @@ Feature: EAP 6.4 Openshift datasources
       | DB_PASSWORD                   | password           |
       | EAP_APP_MONGODB_SERVICE_HOST  | 10.1.1.1           |
       | EAP_APP_MONGODB_SERVICE_PORT  | 27017              |
-    Then container log should contain Running jboss-eap-6/eap64-openshift image
+    Then container log should contain Running  image
      And available container log should not contain There is a problem with the DB_SERVICE_PREFIX_MAPPING environment variable
 
   Scenario: CLOUD-2068, test timer datasource refresh-interval, EAP 6.4 should not have refresh-interval
