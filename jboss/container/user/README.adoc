@@ -45,7 +45,7 @@ The following RPMs will be installed by this module:
 * rsync
 * tar
 * unzip
-* yum-utils
+* dnf-utils
 
 === RPM Package Repositories
 No additional RPM package repositories are required to install listed RPMs.

@@ -18,5 +18,5 @@ execute:
 
 packages:
   install:
-  - rh-maven35
+  - maven
 

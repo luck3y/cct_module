@@ -2,12 +2,20 @@
 # Configure module
 set -e
 
+
 SCRIPT_DIR=$(dirname $0)
 ARTIFACTS_DIR=${SCRIPT_DIR}/artifacts
 
 chown -R jboss:root $ARTIFACTS_DIR
 chmod -R ug+rwX $ARTIFACTS_DIR
+# compat with prev mvn
+mkdir -p ${ARTIFACTS_DIR}/opt/jboss/container/maven/35/
+touch ${ARTIFACTS_DIR}/opt/jboss/container/maven/35/scl-enable-maven
 chmod ug+x ${ARTIFACTS_DIR}/opt/jboss/container/maven/35/scl-enable-maven
+
+mkdir -p /opt/rh/rh-maven35/
+touch /opt/rh/rh-maven35/enable
+chmod +x /opt/rh/rh-maven35/enable
 
 pushd ${ARTIFACTS_DIR}
 cp -pr * /

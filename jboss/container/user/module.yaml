@@ -9,10 +9,10 @@ envs:
 
 packages:
   install:
-  - yum-utils
   - unzip
   - tar
   - rsync
+  - shadow-utils
 
 execute:
 - script: configure.sh
