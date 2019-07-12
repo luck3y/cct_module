@@ -20,7 +20,9 @@ get_jolokia_properties() {
      echo "user=${AB_JOLOKIA_USER:-jolokia}"
      echo "password=${AB_JOLOKIA_PASSWORD}"
   fi
-  if [ -n "$AB_JOLOKIA_HTTPS" ]; then
+
+  use_https=0
+  if [ x"$AB_JOLOKIA_HTTPS" != x"false" ]; then
      echo "protocol=https"
      use_https=1
   fi
@@ -31,7 +33,7 @@ get_jolokia_properties() {
      echo "useSslClientAuthentication=true"
      echo "extraClientCheck=true"
 
-     if [ -z ${use_https+x} ]; then
+     if [ ${use_https} -ne 1 ]; then
        echo "protocol=http"
      fi
      if [ $(is_in_jolokia_opts "caCert") != "yes" ]; then
