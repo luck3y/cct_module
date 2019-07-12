@@ -32,7 +32,7 @@ get_jolokia_properties() {
      echo "extraClientCheck=true"
 
      if [ -z ${use_https+x} ]; then
-       echo "protocol=https"
+       echo "protocol=http"
      fi
      if [ $(is_in_jolokia_opts "caCert") != "yes" ]; then
         echo "caCert=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
